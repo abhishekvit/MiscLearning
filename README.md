@@ -1,24 +1,89 @@
-# LLM Concepts: RAG, Agents, Subagents, MCP & Related Terminology
+# LLM Concepts: Fundamentals, RAG, Agents, Subagents, MCP & Related Terminology
 
-A glossary-style reference connecting the core concepts behind modern LLM applications — retrieval, agents, tool use, and the protocols that wire them together.
+A glossary-style reference connecting the core concepts behind modern LLM applications — from the model internals, through retrieval and agents, to the protocols that wire them together.
 
 ## Table of Contents
 
-1. [RAG (Retrieval-Augmented Generation)](#rag-retrieval-augmented-generation)
-2. [Agents](#agents)
-3. [Subagents](#subagents)
-4. [Tool Use / Function Calling](#tool-use--function-calling)
-5. [MCP (Model Context Protocol)](#mcp-model-context-protocol)
-6. [Orchestration & Multi-Agent Systems](#orchestration--multi-agent-systems)
-7. [Context Window & Context Engineering](#context-window--context-engineering)
-8. [Memory (Short-Term vs Long-Term)](#memory-short-term-vs-long-term)
-9. [The ReAct Pattern & Agent Loop](#the-react-pattern--agent-loop)
-10. [Chain-of-Thought & Reasoning Models](#chain-of-thought--reasoning-models)
-11. [Grounding & Hallucination](#grounding--hallucination)
-12. [Fine-Tuning vs RAG vs Prompt Engineering](#fine-tuning-vs-rag-vs-prompt-engineering)
-13. [Workflows vs Agents](#workflows-vs-agents)
-14. [Guardrails & Human-in-the-Loop](#guardrails--human-in-the-loop)
-15. [How It All Fits Together](#how-it-all-fits-together)
+1. [LLM Fundamentals](#llm-fundamentals)
+2. [RAG (Retrieval-Augmented Generation)](#rag-retrieval-augmented-generation)
+3. [Agents](#agents)
+4. [Subagents](#subagents)
+5. [Tool Use / Function Calling](#tool-use--function-calling)
+6. [MCP (Model Context Protocol)](#mcp-model-context-protocol)
+7. [Orchestration & Multi-Agent Systems](#orchestration--multi-agent-systems)
+8. [Context Window & Context Engineering](#context-window--context-engineering)
+9. [Memory (Short-Term vs Long-Term)](#memory-short-term-vs-long-term)
+10. [The ReAct Pattern & Agent Loop](#the-react-pattern--agent-loop)
+11. [Chain-of-Thought & Reasoning Models](#chain-of-thought--reasoning-models)
+12. [Grounding & Hallucination](#grounding--hallucination)
+13. [Fine-Tuning vs RAG vs Prompt Engineering](#fine-tuning-vs-rag-vs-prompt-engineering)
+14. [Workflows vs Agents](#workflows-vs-agents)
+15. [Guardrails & Human-in-the-Loop](#guardrails--human-in-the-loop)
+16. [How It All Fits Together](#how-it-all-fits-together)
+
+---
+
+## LLM Fundamentals
+
+Before RAG, agents, or MCP make sense, it helps to know what's happening *inside* the LLM itself when it processes text. This section covers how raw text becomes tokens, how tokens become vectors, how attention (Q/K/V) lets the model relate them to each other, and how the model is trained vs. used.
+
+### Tokenization
+
+LLMs don't read characters or whole words — they read **tokens**, which are sub-word chunks produced by a tokenizer (e.g., Byte-Pair Encoding / BPE).
+
+```
+"unbelievable results" → ["un", "believ", "able", " results"]   (illustrative — exact split depends on the tokenizer)
+```
+
+- Common words may be a single token; rare/long words get split into multiple sub-word pieces.
+- Every model has a fixed **vocabulary** (e.g., ~100k–200k possible tokens) and a **context window** measured in tokens, not words or characters (see [Context Window & Context Engineering](#context-window--context-engineering)).
+- Tokenization happens both for input (the prompt) and output (the model generates one token at a time).
+
+### Embeddings
+
+Tokens are just IDs (numbers); an **embedding** turns each token ID into a dense vector of real numbers (e.g., 768, 1536, or more dimensions) that captures semantic meaning — words used in similar contexts end up with similar vectors.
+
+- The model looks up each token's embedding from a learned **embedding matrix** (vocabulary size × embedding dimension), then adds **positional information** so the model knows *where* each token sits in the sequence (since attention itself has no inherent sense of order).
+- This is the same underlying idea used in [RAG](#rag-retrieval-augmented-generation): a separate embedding model converts whole chunks of text into vectors so they can be compared by similarity (e.g., cosine similarity) in a vector database.
+
+### Attention: Queries, Keys, and Values (Q, K, V)
+
+The core mechanism inside a Transformer (the architecture behind virtually all modern LLMs) is **self-attention**, which lets every token "look at" every other token and decide how much to weight it when building its own representation.
+
+For each token's embedding, the model learns three projections:
+
+- **Query (Q)** — "what am I looking for?" — a vector representing the current token's request for context.
+- **Key (K)** — "what do I contain?" — a vector representing what each token (including itself) has to offer.
+- **Value (V)** — "what do I actually pass along?" — the information that gets aggregated once attention decides which tokens matter.
+
+```
+Attention(Q, K, V) = softmax( (Q · Kᵀ) / √d_k ) · V
+```
+
+1. Compute similarity between a token's **Query** and every token's **Key** (dot product) — this gives a raw "relevance score" between each pair of tokens.
+2. Scale and run through **softmax** to turn scores into attention weights that sum to 1.
+3. Use those weights to compute a weighted sum of all tokens' **Values** — the result is a new representation of the token, enriched with relevant context from the rest of the sequence.
+
+- **Multi-head attention** runs this process several times in parallel with different learned Q/K/V projections ("heads"), letting the model capture different *kinds* of relationships simultaneously (e.g., one head tracks grammar, another tracks long-range topic references).
+- Stacking many of these attention layers (plus feed-forward layers) on top of each other is what makes a "Transformer" — the architecture GPT, Claude, Llama, and most other LLMs are built on.
+- This is also conceptually why RAG retrieval uses the same Query/Key idea at a higher level: a query embedding is compared against document (key) embeddings to find the most relevant matches — attention and RAG retrieval are the same "compare-and-retrieve-relevant-info" pattern applied at different scales.
+
+### Training vs. Testing (Inference)
+
+- **Training (learning the weights):**
+  1. **Pre-training** — the model is trained on massive amounts of text with a simple objective (predict the next token given previous ones). Over billions of examples, this is what teaches it grammar, facts, reasoning patterns, and world knowledge, all encoded as learned weights (including the embedding matrix and Q/K/V projection matrices).
+  2. **Fine-tuning / post-training** — the pre-trained model is further trained on curated data to follow instructions and converse helpfully (supervised fine-tuning), and typically refined further using human or AI feedback (e.g., RLHF — Reinforcement Learning from Human Feedback) to make outputs safer, more helpful, and better aligned with what users actually want.
+  - During training, the model's weights are updated via backpropagation + gradient descent to minimize prediction error — this is the expensive, offline phase (large compute clusters, days-to-months).
+- **Testing / Inference (using the trained weights):**
+  - Once trained, the model's weights are **frozen**. Inference is the process of *running* the model on new input to generate output — no weights change.
+  - The model generates text **autoregressively**: it predicts one token at a time, appends it to the sequence, and feeds the extended sequence back in to predict the next token, repeating until it produces a stop condition.
+  - This is the phase every concept elsewhere in this document operates in: RAG retrieval, agent tool calls, and MCP requests all happen *at inference time*, feeding additional context into a frozen model rather than changing its weights. (Fine-tuning is the exception — see [Fine-Tuning vs RAG vs Prompt Engineering](#fine-tuning-vs-rag-vs-prompt-engineering) for when it's worth retraining instead.)
+
+| Phase | What happens | Changes the model's weights? | Analogy |
+|---|---|---|---|
+| Pre-training | Learn language/knowledge from massive text corpora | Yes | Years of schooling |
+| Fine-tuning / RLHF | Learn to follow instructions, align to preferences | Yes | Job-specific training |
+| Inference (testing) | Generate a response to a specific input | No | Doing the actual job, day to day |
 
 ---
 
