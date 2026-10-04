@@ -1,6 +1,6 @@
 # RAG (Retrieval-Augmented Generation) and LLMs
 
-## What is RAG?
+## What is RAG
 
 RAG stands for **Retrieval-Augmented Generation**. It's a technique that connects a large language model (LLM) to an external knowledge source at query time, instead of relying solely on what the model learned during training.
 
