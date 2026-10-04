@@ -49,6 +49,24 @@ Tokens are just IDs (numbers); an **embedding** turns each token ID into a dense
 - The model looks up each token's embedding from a learned **embedding matrix** (vocabulary size × embedding dimension), then adds **positional information** so the model knows *where* each token sits in the sequence (since attention itself has no inherent sense of order).
 - This is the same underlying idea used in [RAG](#rag-retrieval-augmented-generation): a separate embedding model converts whole chunks of text into vectors so they can be compared by similarity (e.g., cosine similarity) in a vector database.
 
+### Positional Embeddings
+
+Self-attention (below) computes a weighted sum over every token's Value vector based on Query/Key similarity — that sum is the same regardless of *where* the tokens sit in the sequence. In other words, attention is inherently **permutation-invariant**: "the cat sat on the mat" and "the mat sat on the cat" would produce identical attention outputs per token if position weren't injected separately. Positional embeddings fix this by encoding order into the token representations themselves, before they're used to form Q/K/V.
+
+- **Absolute positional embeddings (learned)** — the original approach (e.g., GPT-2, BERT): a second embedding matrix (max sequence length × embedding dimension) maps each position index (0, 1, 2, ...) to a learned vector, which is added element-wise to the token embedding. Simple, but doesn't generalize well past the maximum sequence length seen during training.
+- **Sinusoidal positional encoding** — the original Transformer paper's approach: positions are encoded using fixed (non-learned) sine and cosine functions at different frequencies, added to the token embedding. No parameters to learn, and in principle extends to arbitrary lengths, but still represents position as a fixed additive offset rather than something attention can reason about relationally.
+- **RoPE (Rotary Position Embedding)** — the dominant approach in most modern LLMs (Llama, Mistral, Qwen, and others). Instead of *adding* a position vector to the embedding, RoPE **rotates** the Query and Key vectors by an angle proportional to their position, directly inside the attention computation. The key property: the dot product between a rotated Query at position *m* and a rotated Key at position *n* depends only on their **relative distance** (*m* − *n*), not their absolute positions. This gives attention a built-in sense of relative distance between tokens and tends to generalize better to longer sequences than purely absolute schemes.
+- **ALiBi (Attention with Linear Biases)** — another relative-position approach: rather than modifying Q/K vectors at all, it simply subtracts a penalty from the raw attention score that grows linearly with the distance between two tokens, biasing attention toward nearby tokens. Cheap to compute and known for extrapolating well to sequences longer than those seen in training.
+
+| Scheme | Learned? | Encodes | Notes |
+|---|---|---|---|
+| Absolute (learned) | Yes | Absolute position | Simple; poor length extrapolation |
+| Sinusoidal | No | Absolute position | Fixed formula; original Transformer paper |
+| RoPE | No (formula-based) | Relative position (via rotation) | Used by most current open-weight LLMs |
+| ALiBi | No (formula-based) | Relative position (via score bias) | Cheap; strong length extrapolation |
+
+Why it matters beyond trivia: positional scheme is a major factor in how well a model handles long [context windows](#context-window--context-engineering) — a model trained with RoPE or ALiBi generally degrades more gracefully on inputs longer than its training length than one relying on learned absolute positions, which is part of why long-context LLMs lean on relative schemes.
+
 ### Attention: Queries, Keys, and Values (Q, K, V)
 
 The core mechanism inside a Transformer (the architecture behind virtually all modern LLMs) is **self-attention**, which lets every token "look at" every other token and decide how much to weight it when building its own representation.
