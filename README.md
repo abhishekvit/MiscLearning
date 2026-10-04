@@ -32,3 +32,12 @@ User query → Embed query → Vector search over document store → Top-k relev
 ## Summary
 
 RAG turns an LLM from a "closed-book" system (only knows what it memorized) into an "open-book" system (can look things up before answering).
+
+## Relation to Agents
+
+RAG isn't an agent itself — it's a retrieval technique that agents commonly use as a tool.
+
+- **Agents = LLM + tools + a loop.** An agent decides what to do step-by-step, often calling tools to gather information or take action before producing a final answer.
+- **RAG is one of the most common tools.** Instead of relying only on what it memorized during training, an agent can retrieve relevant documents (via the embed → vector search → retrieve pipeline above) and use that context to reason or answer more accurately.
+- **Where it fits in an agent loop:** a typical agent step might be "search the knowledge base" → get chunks back → reason over them → decide the next action (search again, call another tool, or respond). That "search the knowledge base" step is the RAG pipeline described above.
+- **Why agents need it:** agents often operate over private/internal data (codebases, docs, tickets) — the "access to private/proprietary data" and "reduces hallucination" benefits above are why agent frameworks (LangChain, LlamaIndex, Claude's tool-use, etc.) bundle a retrieval tool as a default capability.
