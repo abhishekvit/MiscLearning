@@ -41,3 +41,16 @@ RAG isn't an agent itself — it's a retrieval technique that agents commonly us
 - **RAG is one of the most common tools.** Instead of relying only on what it memorized during training, an agent can retrieve relevant documents (via the embed → vector search → retrieve pipeline above) and use that context to reason or answer more accurately.
 - **Where it fits in an agent loop:** a typical agent step might be "search the knowledge base" → get chunks back → reason over them → decide the next action (search again, call another tool, or respond). That "search the knowledge base" step is the RAG pipeline described above.
 - **Why agents need it:** agents often operate over private/internal data (codebases, docs, tickets) — the "access to private/proprietary data" and "reduces hallucination" benefits above are why agent frameworks (LangChain, LlamaIndex, Claude's tool-use, etc.) bundle a retrieval tool as a default capability.
+
+## What is MCP?
+
+**MCP (Model Context Protocol)** is an open standard (created by Anthropic) that defines a common way for LLM applications to connect to external tools, data sources, and systems — instead of every app building custom, one-off integrations for each data source.
+
+How it relates to RAG and agents:
+
+- **MCP is the "wiring," not the technique.** RAG is *what* you do (retrieve context, inject it into a prompt). MCP is a standardized protocol for *how* an LLM app discovers and talks to the servers that expose that capability — e.g., a vector database, a file system, a ticketing system, a web search API.
+- **MCP servers can expose RAG as a tool.** Instead of hand-coding "embed query → search vector DB → return chunks" inside your agent, you can stand up an MCP server that wraps that pipeline and exposes it as a `search_docs` tool. Any MCP-compatible agent can then call it without custom integration code.
+- **MCP generalizes the "tools" part of an agent loop.** Recall the agent loop from the Agents section above: LLM + tools + a loop. MCP standardizes the tool interface — resources (data), tools (actions/functions), and prompts — so an agent can plug into many different systems (databases, APIs, local files, SaaS apps) through one consistent protocol rather than bespoke SDKs for each.
+- **Why it matters:** before MCP, connecting an LLM app to N data sources meant N custom integrations. MCP turns that into "any MCP client can talk to any MCP server," the same way LSP standardized how editors talk to language tooling.
+
+In short: RAG is a retrieval strategy, agents are the reasoning/orchestration layer that uses tools (including retrieval), and MCP is the protocol that lets agents discover and call those tools (including RAG pipelines) in a standardized way.
