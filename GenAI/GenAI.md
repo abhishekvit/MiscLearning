@@ -18,6 +18,7 @@ A glossary-style reference connecting the core concepts behind modern LLM applic
 12. [Chain-of-Thought & Reasoning Models](#chain-of-thought--reasoning-models)
 13. [Grounding & Hallucination](#grounding--hallucination)
 14. [Prompt Engineering](#prompt-engineering)
+    - [Message Roles: System, User, and Assistant](#message-roles-system-user-and-assistant)
 15. [Fine-Tuning vs RAG vs Prompt Engineering](#fine-tuning-vs-rag-vs-prompt-engineering)
 16. [Workflows vs Agents](#workflows-vs-agents)
 17. [Guardrails & Human-in-the-Loop](#guardrails--human-in-the-loop)
@@ -288,6 +289,26 @@ This loop is what distinguishes an "agent" from a single LLM call: the model int
 ## Prompt Engineering
 
 **Prompt engineering** is the practice of designing the input (instructions, examples, structure) given to an LLM to reliably get the output you want — without changing the model's weights or adding external retrieval. It's the cheapest, fastest lever to pull before reaching for RAG or fine-tuning.
+
+### Message Roles: System, User, and Assistant
+
+Under the hood, a chat-based LLM API doesn't take one big blob of text — it takes a structured list of `{role, content}` messages. The three roles:
+
+- **System** — persistent instructions, persona, and constraints that apply for the whole conversation (e.g., "You are a terse code reviewer who only flags security issues"). Usually set once by the developer/application, not the end user, and sits "above" the conversation. Well-aligned models are trained to weight system instructions more heavily/durably than conflicting instructions found elsewhere in the context.
+- **User** — the actual input from the person (or calling application) for a given turn — a question, a request, or (in agentic/tool-use settings) a tool result being handed back to the model.
+- **Assistant** — the model's own prior responses, included in the message history so it has context on what it already said across a multi-turn conversation.
+
+```
+[ system ]  "You are a helpful coding assistant. Always answer in Python."
+[ user ]    "Write a function to reverse a string."
+[ assistant ] "def reverse_string(s): return s[::-1]"
+[ user ]    "Now make it handle None input."
+```
+
+Why the split matters:
+- **Separation of concerns** — the application developer controls the system prompt (rules, safety constraints, tool definitions); the end user only controls their own messages.
+- **A security boundary** — untrusted content (end-user input, RAG-retrieved documents, tool outputs) arrives as `user`-role content, not `system`-role, so it shouldn't carry the same instruction-following weight as the system prompt. This is the first line of defense against [prompt injection](#prompt-injection-a-key-risk) below — though it's a mitigation, not a guarantee, since a sufficiently crafted user message can still sometimes sway behavior.
+- **Precedence under conflict** — if a user message says "ignore your previous instructions," a well-aligned model is trained to keep following the system prompt rather than comply.
 
 ### Core Techniques
 
