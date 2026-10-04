@@ -6,20 +6,21 @@ A glossary-style reference connecting the core concepts behind modern LLM applic
 
 1. [LLM Fundamentals](#llm-fundamentals)
 2. [RAG (Retrieval-Augmented Generation)](#rag-retrieval-augmented-generation)
-3. [Agents](#agents)
-4. [Subagents](#subagents)
-5. [Tool Use / Function Calling](#tool-use--function-calling)
-6. [MCP (Model Context Protocol)](#mcp-model-context-protocol)
-7. [Orchestration & Multi-Agent Systems](#orchestration--multi-agent-systems)
-8. [Context Window & Context Engineering](#context-window--context-engineering)
-9. [Memory (Short-Term vs Long-Term)](#memory-short-term-vs-long-term)
-10. [The ReAct Pattern & Agent Loop](#the-react-pattern--agent-loop)
-11. [Chain-of-Thought & Reasoning Models](#chain-of-thought--reasoning-models)
-12. [Grounding & Hallucination](#grounding--hallucination)
-13. [Fine-Tuning vs RAG vs Prompt Engineering](#fine-tuning-vs-rag-vs-prompt-engineering)
-14. [Workflows vs Agents](#workflows-vs-agents)
-15. [Guardrails & Human-in-the-Loop](#guardrails--human-in-the-loop)
-16. [How It All Fits Together](#how-it-all-fits-together)
+3. [Vector Databases](#vector-databases)
+4. [Agents](#agents)
+5. [Subagents](#subagents)
+6. [Tool Use / Function Calling](#tool-use--function-calling)
+7. [MCP (Model Context Protocol)](#mcp-model-context-protocol)
+8. [Orchestration & Multi-Agent Systems](#orchestration--multi-agent-systems)
+9. [Context Window & Context Engineering](#context-window--context-engineering)
+10. [Memory (Short-Term vs Long-Term)](#memory-short-term-vs-long-term)
+11. [The ReAct Pattern & Agent Loop](#the-react-pattern--agent-loop)
+12. [Chain-of-Thought & Reasoning Models](#chain-of-thought--reasoning-models)
+13. [Grounding & Hallucination](#grounding--hallucination)
+14. [Fine-Tuning vs RAG vs Prompt Engineering](#fine-tuning-vs-rag-vs-prompt-engineering)
+15. [Workflows vs Agents](#workflows-vs-agents)
+16. [Guardrails & Human-in-the-Loop](#guardrails--human-in-the-loop)
+17. [How It All Fits Together](#how-it-all-fits-together)
 
 ---
 
@@ -119,6 +120,49 @@ User query → Embed query → Vector search over document store → Top-k relev
 ### Summary
 
 RAG turns an LLM from a "closed-book" system (only knows what it memorized) into an "open-book" system (can look things up before answering).
+
+---
+
+## Vector Databases
+
+A **vector database** is a database purpose-built to store embeddings (high-dimensional vectors) and search them by *similarity* rather than exact match — the storage/retrieval engine that makes RAG practical at scale.
+
+### Why a Regular Database Doesn't Work Here
+
+A SQL `WHERE` clause or keyword search can't answer "find me the chunks that mean something similar to this query" — that requires comparing vectors in high-dimensional space (e.g., 768 or 1536 dimensions), which relational indexes aren't built for. Vector databases exist specifically to make that comparison fast at millions-to-billions of vectors.
+
+### How It Works
+
+1. **Ingest** — documents are split into chunks, each chunk is run through an embedding model, and the resulting vector (plus the original text and metadata) is stored in the vector database.
+2. **Index** — the database builds a specialized index over the vectors so similarity search doesn't require comparing the query against every single stored vector (which would be too slow at scale). Common approaches:
+   - **HNSW** (Hierarchical Navigable Small World) — a graph-based index offering a good speed/accuracy trade-off; used by most modern vector DBs.
+   - **IVF** (Inverted File Index) — clusters vectors and searches only the most relevant clusters.
+   - **Product Quantization (PQ)** — compresses vectors to save memory, at some accuracy cost.
+   - These are all **Approximate Nearest Neighbor (ANN)** techniques — trading a small amount of accuracy for large speed gains over exact ("brute-force") search.
+3. **Query** — the user's query is embedded with the same embedding model, and the database returns the **top-k** stored vectors with the smallest distance (highest similarity) to the query vector.
+
+### Similarity Metrics
+
+- **Cosine similarity** — measures the angle between two vectors (ignores magnitude); the most common choice for text embeddings.
+- **Dot product** — similar to cosine but also sensitive to vector magnitude; used when the embedding model is trained for it.
+- **Euclidean (L2) distance** — straight-line distance between vectors; less common for text but used in some domains.
+
+### Hybrid Search & Metadata Filtering
+
+- **Hybrid search** combines vector (semantic) search with traditional keyword search (e.g., BM25), since pure vector search can miss exact matches like product codes, names, or acronyms that keyword search handles well.
+- **Metadata filtering** lets a query be scoped by structured fields stored alongside each vector (e.g., `date > X`, `department = "legal"`), narrowing the search space before or during the similarity search — important for multi-tenant or access-controlled RAG systems.
+
+### Common Vector Databases
+
+| Type | Examples |
+|---|---|
+| Dedicated vector DB | Pinecone, Weaviate, Qdrant, Milvus |
+| Embedded / lightweight | Chroma, FAISS (a library, not a full DB), LanceDB |
+| Vector search added to existing DBs | pgvector (Postgres), Elasticsearch/OpenSearch, MongoDB Atlas Vector Search, Redis |
+
+### Where It Fits
+
+The vector database is the **"retrieval" half of RAG** made concrete — it's the component the [RAG pipeline](#rag-retrieval-augmented-generation) above actually queries in the "Vector search over document store" step, and it's also commonly reused as the backing store for an agent's [long-term memory](#memory-short-term-vs-long-term), since "remembering" and "retrieving relevant documents" are the same underlying search problem.
 
 ---
 
